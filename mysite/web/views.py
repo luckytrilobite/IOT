@@ -9,3 +9,6 @@ def about(request):
 
 def dashboard(request):
     return render(request, "web/dashboard.html")
+
+def weather(request):
+    return render(request, "web/weather.html")
