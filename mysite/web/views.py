@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 
-def index(request):
+def home(request):
     return render(request, "web/home.html")
 
 def about(request):
