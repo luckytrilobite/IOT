@@ -13,7 +13,6 @@ body {
     color: white;
 }
 
-/* header */
 header {
     padding: 14px;
     background: #1e293b;
@@ -22,7 +21,6 @@ header {
     font-weight: bold;
 }
 
-/* layout */
 .container {
     display: grid;
     grid-template-columns: 2fr 1fr;
@@ -32,20 +30,18 @@ header {
     height: calc(100vh - 60px);
 }
 
-/* NEWS (左側大區) */
+/* NEWS */
 .news {
     grid-row: 1 / span 2;
     background: #111827;
     border-radius: 12px;
     padding: 12px;
     overflow-y: auto;
-
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
 }
 
-/* NEWS card */
 .news-card {
     background: #0b1220;
     padding: 10px;
@@ -61,16 +57,12 @@ header {
     margin-bottom: 6px;
 }
 
-.news-card a:hover {
-    text-decoration: underline;
-}
-
 .news-meta {
     font-size: 11px;
     color: #9ca3af;
 }
 
-/* WEATHER (右上) */
+/* WEATHER */
 .weather {
     background: #111827;
     border-radius: 12px;
@@ -87,7 +79,6 @@ header {
     border-bottom: 1px solid #1f2937;
 }
 
-/* EMPTY (右下) */
 .empty {
     background: #0b1220;
     border-radius: 12px;
@@ -99,23 +90,18 @@ header {
 <body>
 
 <header>
-    News / Weather
+IoT Dashboard
 </header>
 
 <div class="container">
 
-<!-- NEWS -->
-<div class="news" id="news">
-    載入新聞中...
-</div>
+<div class="news" id="news">載入新聞中...</div>
 
-<!-- WEATHER -->
 <div class="weather">
     <h3 style="margin:0 0 6px 0;">🌦 斗六天氣</h3>
     <div id="weather">載入中...</div>
 </div>
 
-<!-- EMPTY -->
 <div class="empty"></div>
 
 </div>
@@ -123,66 +109,105 @@ header {
 <script>
 
 // =====================
-// NEWS (卡片式)
+// NEWS (SAFE VERSION)
 // =====================
 async function loadNews() {
-    const res = await fetch("/news/");
-    const text = await res.text();
+    try {
+        const res = await fetch("/news/");
 
-    const xml = new DOMParser().parseFromString(text, "text/xml");
-    const items = xml.querySelectorAll("item");
+        if (!res.ok) {
+            throw new Error("HTTP " + res.status);
+        }
 
-    let html = "";
+        const text = await res.text();
 
-    items.forEach((item, i) => {
-        if (i >= 12) return;
+        const xml = new DOMParser().parseFromString(text, "text/xml");
 
-        const title = item.querySelector("title")?.textContent;
-        const link = item.querySelector("link")?.textContent;
-        const date = item.querySelector("pubDate")?.textContent;
+        const items = xml.querySelectorAll("item");
 
-        html += `
-            <div class="news-card">
-                <a href="${link}" target="_blank">${title}</a>
-                <div class="news-meta">
-                    ${new Date(date).toLocaleString()}
+        if (!items.length) {
+            document.getElementById("news").innerHTML =
+                "❌ RSS 空資料";
+            return;
+        }
+
+        let html = "";
+
+        items.forEach((item, i) => {
+            if (i >= 12) return;
+
+            const title = item.querySelector("title")?.textContent || "no title";
+            const link = item.querySelector("link")?.textContent || "#";
+            const date = item.querySelector("pubDate")?.textContent || "";
+
+            html += `
+                <div class="news-card">
+                    <a href="${link}" target="_blank">${title}</a>
+                    <div class="news-meta">
+                        ${date ? new Date(date).toLocaleString() : ""}
+                    </div>
                 </div>
-            </div>
-        `;
-    });
+            `;
+        });
 
-    document.getElementById("news").innerHTML = html;
+        document.getElementById("news").innerHTML = html;
+
+    } catch (e) {
+        document.getElementById("news").innerHTML =
+            "❌ News load failed: " + e.message;
+        console.error(e);
+    }
 }
 
 // =====================
-// WEATHER (縮小版)
+// WEATHER (SAFE)
 // =====================
 async function loadWeather() {
-    const lat = 23.707;
-    const lon = 120.543;
+    try {
+        const lat = 23.707;
+        const lon = 120.543;
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability&timezone=Asia/Taipei`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability&current_weather=true&timezone=Asia/Taipei`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+        const res = await fetch(url);
+        const data = await res.json();
 
-    let html = "";
+        let html = "";
 
-    for (let i = 0; i < 6; i++) {
-        const time = data.hourly.time[i].slice(11, 16);
-        const temp = data.hourly.temperature_2m[i];
-        const rain = data.hourly.precipitation_probability[i];
-
+        // NOW
         html += `
-            <div class="weather-row">
-                <div>${time}</div>
-                <div>${temp}°C</div>
-                <div>🌧 ${rain}%</div>
+            <div style="margin-bottom:8px;border-bottom:1px solid #1f2937;">
+                🌡 現在：${data.current_weather.temperature}°C
+                | 🌬 ${data.current_weather.windspeed} km/h
             </div>
         `;
-    }
 
-    document.getElementById("weather").innerHTML = html;
+        // NEXT 5 HOURS
+        for (let i = 0; i < 5; i++) {
+
+            const t = new Date(data.hourly.time[i]).toLocaleString("zh-TW", {
+                year:"numeric",
+                month:"2-digit",
+                day:"2-digit",
+                hour:"2-digit",
+                minute:"2-digit"
+            });
+
+            html += `
+                <div class="weather-row">
+                    <div>${t}</div>
+                    <div>${data.hourly.temperature_2m[i]}°C</div>
+                    <div>🌧 ${data.hourly.precipitation_probability[i]}%</div>
+                </div>
+            `;
+        }
+
+        document.getElementById("weather").innerHTML = html;
+
+    } catch (e) {
+        document.getElementById("weather").innerHTML =
+            "❌ Weather failed";
+    }
 }
 
 // init
