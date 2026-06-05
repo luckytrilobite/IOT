@@ -3,52 +3,95 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>國際新聞 + 斗六天氣</title>
+<title>IoT Dashboard</title>
 
 <style>
 body {
-    font-family: Arial;
     margin: 0;
+    font-family: Arial;
     background: #0f172a;
     color: white;
 }
 
+/* header */
 header {
-    padding: 20px;
+    padding: 14px;
     background: #1e293b;
     text-align: center;
-    font-size: 20px;
+    font-size: 18px;
+    font-weight: bold;
 }
 
+/* layout */
 .container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
     gap: 10px;
     padding: 10px;
+    height: calc(100vh - 60px);
 }
 
-.card {
+/* NEWS (左側大區) */
+.news {
+    grid-row: 1 / span 2;
     background: #111827;
-    padding: 15px;
+    border-radius: 12px;
+    padding: 12px;
+    overflow-y: auto;
+
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+/* NEWS card */
+.news-card {
+    background: #0b1220;
+    padding: 10px;
     border-radius: 10px;
+    border: 1px solid #1f2937;
 }
 
-h2 {
-    border-left: 4px solid #38bdf8;
-    padding-left: 8px;
+.news-card a {
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 6px;
 }
 
-.news-item {
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #333;
+.news-card a:hover {
+    text-decoration: underline;
 }
 
-.weather-hour {
+.news-meta {
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+/* WEATHER (右上) */
+.weather {
+    background: #111827;
+    border-radius: 12px;
+    padding: 10px;
+    height: 180px;
+    overflow: hidden;
+}
+
+.weather-row {
     display: flex;
     justify-content: space-between;
+    font-size: 12px;
     padding: 4px 0;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid #1f2937;
+}
+
+/* EMPTY (右下) */
+.empty {
+    background: #0b1220;
+    border-radius: 12px;
+    border: 1px dashed #1f2937;
 }
 </style>
 </head>
@@ -56,97 +99,96 @@ h2 {
 <body>
 
 <header>
-    🌍 國際新聞 + 🌦 斗六 8 小時天氣
+    News / Weather
 </header>
 
 <div class="container">
 
 <!-- NEWS -->
-<div class="card">
-    <h2>國際最新新聞</h2>
-    <div id="news">載入中...</div>
+<div class="news" id="news">
+    載入新聞中...
 </div>
 
 <!-- WEATHER -->
-<div class="card">
-    <h2>斗六 8 小時天氣</h2>
+<div class="weather">
+    <h3 style="margin:0 0 6px 0;">🌦 斗六天氣</h3>
     <div id="weather">載入中...</div>
 </div>
+
+<!-- EMPTY -->
+<div class="empty"></div>
 
 </div>
 
 <script>
-// ========================
-// 1. 國際新聞（用 GDELT，不用 API key）
-// ========================
+
+// =====================
+// NEWS (卡片式)
+// =====================
 async function loadNews() {
-    const url = "https://api.gdeltproject.org/api/v2/doc/doc?query=world&mode=artlist&format=json&maxrecords=5";
+    const res = await fetch("/news/");
+    const text = await res.text();
 
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
+    const xml = new DOMParser().parseFromString(text, "text/xml");
+    const items = xml.querySelectorAll("item");
 
-        let html = "";
-        data.articles.forEach(a => {
-            html += `
-                <div class="news-item">
-                    <a href="${a.url}" target="_blank" style="color:#38bdf8">
-                        ${a.title}
-                    </a>
-                    <div style="font-size:12px;color:#aaa">
-                        ${a.sourceCountry || ""} ${a.seendate || ""}
-                    </div>
+    let html = "";
+
+    items.forEach((item, i) => {
+        if (i >= 12) return;
+
+        const title = item.querySelector("title")?.textContent;
+        const link = item.querySelector("link")?.textContent;
+        const date = item.querySelector("pubDate")?.textContent;
+
+        html += `
+            <div class="news-card">
+                <a href="${link}" target="_blank">${title}</a>
+                <div class="news-meta">
+                    ${new Date(date).toLocaleString()}
                 </div>
-            `;
-        });
+            </div>
+        `;
+    });
 
-        document.getElementById("news").innerHTML = html;
-    } catch (e) {
-        document.getElementById("news").innerHTML = "新聞載入失敗";
-    }
+    document.getElementById("news").innerHTML = html;
 }
 
-// ========================
-// 2. 斗六天氣（Open-Meteo）
-// ========================
+// =====================
+// WEATHER (縮小版)
+// =====================
 async function loadWeather() {
-    // 斗六座標
     const lat = 23.707;
     const lon = 120.543;
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability&timezone=Asia%2FTaipei`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability&timezone=Asia/Taipei`;
 
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
+    const res = await fetch(url);
+    const data = await res.json();
 
-        let html = "";
-        for (let i = 0; i < 8; i++) {
-            const time = data.hourly.time[i].slice(11,16);
-            const temp = data.hourly.temperature_2m[i];
-            const rain = data.hourly.precipitation_probability[i];
+    let html = "";
 
-            html += `
-                <div class="weather-hour">
-                    <span>${time}</span>
-                    <span>${temp}°C</span>
-                    <span>降雨 ${rain}%</span>
-                </div>
-            `;
-        }
+    for (let i = 0; i < 6; i++) {
+        const time = data.hourly.time[i].slice(11, 16);
+        const temp = data.hourly.temperature_2m[i];
+        const rain = data.hourly.precipitation_probability[i];
 
-        document.getElementById("weather").innerHTML = html;
-
-    } catch (e) {
-        document.getElementById("weather").innerHTML = "天氣載入失敗";
+        html += `
+            <div class="weather-row">
+                <div>${time}</div>
+                <div>${temp}°C</div>
+                <div>🌧 ${rain}%</div>
+            </div>
+        `;
     }
+
+    document.getElementById("weather").innerHTML = html;
 }
 
-// 啟動
+// init
 loadNews();
 loadWeather();
 
-// 每 10 分鐘更新
 setInterval(() => {
     loadNews();
     loadWeather();
