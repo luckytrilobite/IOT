@@ -182,7 +182,7 @@ let historyChart = new Chart(historyCtx, {
 ========================= */
 async function fetchHistory() {
     try {
-        const res = await fetch("/history");
+        const res = await fetch("http://127.0.0.1:8003/history");
         const data = await res.json();
 
         const reversed = data.reverse();
@@ -235,7 +235,7 @@ function switchSensor(type) {
 ========================= */
 async function fetchSensor() {
     try {
-        const res = await fetch("/sensor");
+        const res = await fetch("http://127.0.0.1:8003/sensor");
         const data = await res.json();
 
         document.getElementById("distance").innerText = data.distance ?? "N/A";
