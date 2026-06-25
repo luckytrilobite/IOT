@@ -107,97 +107,96 @@ canvas {
     <!-- 右邊 -->
     <div class="right">
 
-        <div class="card">
-            <h4>即時溫度</h4>
-            <canvas id="chart1"></canvas>
-        </div>
-
-        <div class="card">
-            <h4>即時濕度</h4>
-            <canvas id="chart2"></canvas>
-        </div>
-
-        <div class="card">
-            <h4>即時光照</h4>
-            <canvas id="chart3"></canvas>
-        </div>
-
+    <div class="card">
+        <h4>距離 (distance)</h4>
+        <div style="font-size: 30px;" id="distance">--</div>
     </div>
+
+    <div class="card">
+        <h4>麥克風 (mic)</h4>
+        <div style="font-size: 30px;" id="mic">--</div>
+    </div>
+
+    <div class="card">
+        <h4>光照 (light)</h4>
+        <div style="font-size: 30px;" id="light">--</div>
+    </div>
+
+</div>
 
 </div>
 
 <script>
 
 /* ===== 歷史圖 ===== */
+
 const historyCtx = document.getElementById('historyChart');
 
 let historyChart = new Chart(historyCtx, {
     type: 'line',
     data: {
         labels: [],
-        datasets: [{
-            label: 'sensor',
-            data: [],
-            borderColor: '#00ff88'
-        }]
+        datasets: [
+            {
+                label: "distance",
+                data: [],
+                borderColor: "#00ff88"
+            },
+            {
+                label: "mic",
+                data: [],
+                borderColor: "#ffcc00"
+            },
+            {
+                label: "light",
+                data: [],
+                borderColor: "#00aaff"
+            }
+        ]
     }
 });
 
-function switchSensor(type) {
-    // 假資料（之後可改 API）
-    let dataMap = {
-        temp: [20,22,23,25,24,26],
-        hum: [60,65,63,70,68,72],
-        light: [300,320,310,330,350,340]
-    };
+async function fetchHistory() {
+    try {
+        const res = await fetch("/history");
+        const data = await res.json();
 
-    historyChart.data.labels = ['1','2','3','4','5','6'];
-    historyChart.data.datasets[0].data = dataMap[type];
-    historyChart.data.datasets[0].label = type;
-    historyChart.update();
-}
+        // 反轉（因為你 SQL DESC）
+        const reversed = data.reverse();
 
-/* ===== 即時圖（模擬） ===== */
-function createRealtimeChart(id) {
-    return new Chart(document.getElementById(id), {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: '#00ff88'
-            }]
-        },
-        options: {
-            animation: false
-        }
-    });
-}
+        historyChart.data.labels = reversed.map(d => d.ts);
 
-let c1 = createRealtimeChart('chart1');
-let c2 = createRealtimeChart('chart2');
-let c3 = createRealtimeChart('chart3');
+        historyChart.data.datasets[0].data = reversed.map(d => d.distance);
+        historyChart.data.datasets[1].data = reversed.map(d => d.mic);
+        historyChart.data.datasets[2].data = reversed.map(d => d.light);
 
-function updateChart(chart, value) {
-    let time = new Date().toLocaleTimeString();
+        historyChart.update();
 
-    chart.data.labels.push(time);
-    chart.data.datasets[0].data.push(value);
-
-    if(chart.data.labels.length > 10) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
+    } catch (err) {
+        console.log("history API error:", err);
     }
-
-    chart.update();
 }
 
-/* 模擬即時資料 */
-setInterval(() => {
-    updateChart(c1, Math.random()*30);
-    updateChart(c2, Math.random()*100);
-    updateChart(c3, Math.random()*500);
-}, 1000);
+// 5 秒更新
+setInterval(fetchHistory, 5000);
+fetchHistory();
+
+async function fetchSensor() {
+    try {
+        const res = await fetch("/sensor");
+        const data = await res.json();
+
+        document.getElementById("distance").innerText = data.distance ?? "N/A";
+        document.getElementById("mic").innerText = data.mic ?? "N/A";
+        document.getElementById("light").innerText = data.light ?? "N/A";
+
+    } catch (err) {
+        console.log("API error:", err);
+    }
+}
+
+setInterval(fetchSensor, 1000);
+fetchSensor();
 
 </script>
 
