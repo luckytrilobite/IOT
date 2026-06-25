@@ -18,7 +18,7 @@ body {
     height: 100vh;
 }
 
-/* 左邊 2/3 */
+/* 左 2/3 */
 .left {
     width: 66%;
     padding: 20px;
@@ -26,7 +26,7 @@ body {
     border-right: 1px solid #00ff88;
 }
 
-/* 右邊 1/3 */
+/* 右 1/3 */
 .right {
     width: 34%;
     padding: 20px;
@@ -59,16 +59,17 @@ button:hover {
     color: black;
 }
 
-/* 學生資訊 */
+/* info */
 .info {
     margin-top: 10px;
     font-size: 14px;
 }
 
-/* 圖表高度 */
-canvas {
-    max-height: 200px;
+/* chart container */
+.chart-box {
+    height: 300px;
 }
+
 </style>
 </head>
 
@@ -79,18 +80,20 @@ canvas {
     <!-- 左邊 -->
     <div class="left">
 
-        <!-- 上：歷史資料 -->
+        <!-- 歷史資料 -->
         <div class="card">
             <h3>歷史資料</h3>
 
-            <button onclick="switchSensor('temp')">溫度</button>
-            <button onclick="switchSensor('hum')">濕度</button>
+            <button onclick="switchSensor('distance')">距離</button>
+            <button onclick="switchSensor('mic')">麥克風</button>
             <button onclick="switchSensor('light')">光照</button>
 
-            <canvas id="historyChart"></canvas>
+            <div class="chart-box">
+                <canvas id="historyChart"></canvas>
+            </div>
         </div>
 
-        <!-- 下：導航 -->
+        <!-- 導航 -->
         <div class="card">
             <h3>系統導覽</h3>
 
@@ -98,7 +101,7 @@ canvas {
             <button onclick="location.href='/project'">專題頁面</button>
 
             <div class="info">
-                學號B11213060 - 解皓翔
+                學號 B11213060 - 解皓翔
             </div>
         </div>
 
@@ -107,29 +110,32 @@ canvas {
     <!-- 右邊 -->
     <div class="right">
 
-    <div class="card">
-        <h4>距離 (distance)</h4>
-        <div style="font-size: 30px;" id="distance">--</div>
-    </div>
+        <div class="card">
+            <h4>距離 (distance)</h4>
+            <div style="font-size: 30px;" id="distance">--</div>
+        </div>
 
-    <div class="card">
-        <h4>麥克風 (mic)</h4>
-        <div style="font-size: 30px;" id="mic">--</div>
-    </div>
+        <div class="card">
+            <h4>麥克風 (mic)</h4>
+            <div style="font-size: 30px;" id="mic">--</div>
+        </div>
 
-    <div class="card">
-        <h4>光照 (light)</h4>
-        <div style="font-size: 30px;" id="light">--</div>
-    </div>
+        <div class="card">
+            <h4>光照 (light)</h4>
+            <div style="font-size: 30px;" id="light">--</div>
+        </div>
 
-</div>
+    </div>
 
 </div>
 
 <script>
 
-/* ===== 歷史圖 ===== */
+let currentHistoryType = "all";
 
+/* =========================
+   History Chart
+========================= */
 const historyCtx = document.getElementById('historyChart');
 
 let historyChart = new Chart(historyCtx, {
@@ -140,35 +146,77 @@ let historyChart = new Chart(historyCtx, {
             {
                 label: "distance",
                 data: [],
-                borderColor: "#00ff88"
+                borderColor: "#00ff88",
+                tension: 0.3
             },
             {
                 label: "mic",
                 data: [],
-                borderColor: "#ffcc00"
+                borderColor: "#ffcc00",
+                tension: 0.3
             },
             {
                 label: "light",
                 data: [],
-                borderColor: "#00aaff"
+                borderColor: "#00aaff",
+                tension: 0.3
             }
         ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+            x: {
+                ticks: {
+                    maxTicksLimit: 5
+                }
+            }
+        }
     }
 });
 
+/* =========================
+   History API
+========================= */
 async function fetchHistory() {
     try {
         const res = await fetch("/history");
         const data = await res.json();
 
-        // 反轉（因為你 SQL DESC）
         const reversed = data.reverse();
 
-        historyChart.data.labels = reversed.map(d => d.ts);
+        const labels = reversed.map(d => d.ts.split(" ")[1]);
 
-        historyChart.data.datasets[0].data = reversed.map(d => d.distance);
-        historyChart.data.datasets[1].data = reversed.map(d => d.mic);
-        historyChart.data.datasets[2].data = reversed.map(d => d.light);
+        if (currentHistoryType === "all") {
+
+            historyChart.data.labels = labels;
+
+            historyChart.data.datasets[0].data = reversed.map(d => d.distance);
+            historyChart.data.datasets[1].data = reversed.map(d => d.mic);
+            historyChart.data.datasets[2].data = reversed.map(d => d.light);
+
+        } else {
+
+            historyChart.data.labels = labels;
+
+            historyChart.data.datasets[0].data = [];
+            historyChart.data.datasets[1].data = [];
+            historyChart.data.datasets[2].data = [];
+
+            if (currentHistoryType === "distance") {
+                historyChart.data.datasets[0].data = reversed.map(d => d.distance);
+            }
+
+            if (currentHistoryType === "mic") {
+                historyChart.data.datasets[1].data = reversed.map(d => d.mic);
+            }
+
+            if (currentHistoryType === "light") {
+                historyChart.data.datasets[2].data = reversed.map(d => d.light);
+            }
+        }
 
         historyChart.update();
 
@@ -177,10 +225,14 @@ async function fetchHistory() {
     }
 }
 
-// 5 秒更新
-setInterval(fetchHistory, 5000);
-fetchHistory();
+/* 切換歷史圖 */
+function switchSensor(type) {
+    currentHistoryType = type;
+}
 
+/* =========================
+   Sensor API
+========================= */
 async function fetchSensor() {
     try {
         const res = await fetch("/sensor");
@@ -191,12 +243,18 @@ async function fetchSensor() {
         document.getElementById("light").innerText = data.light ?? "N/A";
 
     } catch (err) {
-        console.log("API error:", err);
+        console.log("sensor API error:", err);
     }
 }
 
+/* =========================
+   Intervals
+========================= */
 setInterval(fetchSensor, 1000);
+setInterval(fetchHistory, 5000);
+
 fetchSensor();
+fetchHistory();
 
 </script>
 
